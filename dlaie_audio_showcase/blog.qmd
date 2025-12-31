@@ -1,0 +1,134 @@
+# Adding Guidance-Based Stylistic Controls to Flow Models for Coherent Audio Generation
+
+**Authors:** Zain Alsaad, Simeon Betapudi, Brody Blackwood, Marco Cassar, Kenneth Chau, Jayden Cruz, Evan Dant, Kritan Duwal, Rush Gorney, Maxwell Goskie, Elijah Konkle, Hari Patel, Mayur Patel, Brady Pinter, and Christopher White
+
+**Advisor:** Scott Hawley, Ph.D.
+
+*Belmont University, Nashville, TN, USA*
+
+---
+
+## Abstract
+
+This research introduces a novel approach to audio generation that leverages guidance-based flow models to create audio. These models operate by learning latent representations of audio and decoding them. A project-based course was implemented where students explored generative audio using Stable Audio Open. Using chords, melody, and beat as core guidance mechanisms, a custom guidance model was built using mix tracks from Belmont University’s audio archives to steer generation toward higher stylistic coherence. Beyond technical outcomes, this approach highlights the value of interactive, hands-on learning in audio AI education where students learn by deeply engaging with model training, evaluation, and creative iteration. However, the results were ultimately unsatisfactory due to numerous limitations that constrained both technical performance and pedagogical impact.
+
+## Project Overview
+
+
+
+
+## Introduction
+
+In generative AI, flow-based models have become a powerful technique that offers a simulation-free alternative to traditional diffusion-based approaches. At its core, flow matching involves learning a vector field that transports randomized samples to a complex target distribution along a predefined path. Unlike score-based diffusion models that rely on stochastic sampling and iterative denoising, flow matching directly regresses the velocity field needed to traverse this path, enabling more efficient and stable training. Prior research has adapted this framework to operate within learned latent representations, allowing for scalable generation across images and audio. Training-based guidance further enhances flow models by conditioning the learned velocity field on structured features. This research explores whether guidance-based flow-matching models can be applied to musical features like chords, melody, and beats to shape the output in latent space and improve audio quality.
+
+Stable Audio Open is an open-source generative text-to-audio model developed by Stability AI that produces stereo audio at 44.1kHz from descriptive prompts. Since Stable Audio Open is already built on a flow-matching architecture, it provided an ideal foundation for integrating structured guidance. Using this as the baseline model and then incorporating plugin driven musical analysis to condition the latent velocity fields enables evaluation of whether embedding musical priors into the generative process leads to perceptually richer and more stylistically coherent audio outputs.
+
+Moreover, this paper focuses on the importance of a hands-on project-based approach to AI education. Experiential learning, i.e. learning through direct experience, has become increasingly vital in AI education, especially as models grow more complex and abstract. Rather than relying solely on lectures or passive content consumption, such immersion fosters deeper conceptual understanding and retention.
+
+## Background
+
+This section provides foundational context for the techniques employed in this research. We first introduce flow models as a generative framework, then discuss how guidance mechanisms can be integrated to steer generation toward desired outputs. Understanding these concepts is essential for appreciating how musical features can be embedded into the latent generation process.
+
+### What is a Flow Model?
+
+A flow model learns a continuous transformation that maps a simple noise distribution to a complex data distribution by following a differential equation over time. Flow matching provides a way to train these models by directly regressing the velocity field that moves a sample along a chosen path from noise to data. Because the method learns the true deterministic velocity rather than relying on stochastic denoising steps, it simplifies training and avoids the iterative noise-removal loops used in diffusion-based approaches.
+
+### What is Guidance?
+
+Guidance methods can be used to add more precise controls to a flow model. In essence, guidance adjusts a generative model's direction repeatedly during its generation towards some desired output. Guidance was originally used as a method for diffusion models, but recent results have shown that the same methods can be used to add controls to flow models. For flow models, guidance methods act on the velocity field, adding extra velocity at each step by evaluating the likelihood of reaching a desired condition at the current step. In classifier guidance, this desired condition is determined by the likelihood of matching an external classifier. The direction of the adjustment is found by calculating the gradient of the classifier log-likelihood.
+
+PnP-Flow offers an alternative approach by adjusting the sample directly rather than modifying the velocity field. At each step, the method applies the gradient correction, projects back onto the flow trajectory (this is is easy to do with the assumption of the straightened paths from the ReFlow process), and then applies a denoiser, computing a new estimate. This cycle enables effective inference-time control even for models with nearly linear rectified paths. In practice, the approach allows external constraints to be incorporated while keeping the sample close to the model's learned path, as demonstrated in recent work on plug-and-play flow matching.
+
+![guidance](https://hackmd.io/_uploads/Bk8RLKuzbl.png)
+*This diagram illustrates how Δv corrects the predicted flow to reach the true target trajectory.*
+
+
+## Methodology
+
+Our approach extends Stable Audio Open with guidance mechanisms targeting three core musical attributes: continuous pitch, discrete pitch, and beat. Each guidance type required developing or adapting differentiable analysis tools that could propagate gradients through the generation process. The following subsections detail the implementation of each guidance mechanism, the modifications required to existing libraries, and the integration strategy with the base model's callback loop.
+
+### Continuous Pitch
+
+The continuous pitch section of this paper explored finding a library to carry gradients through the pitch classification process on a continuous scale. While unsuccessful in finding a exact library to accomplish this goal, torchcrepe was an exact implementation of CREPE which allowed for the good representation of pitch estimation.
+
+From this baseline, a fork of the torchcrepe library was taken and the following changes were made:
+
+1. Removed @with torch.nograd()
+2. Replaced the viterbi decoder with softmax from torch.nn.functional
+3. Replaced resampling process with torchaudio.functional.resample
+4. Added a parameter to the library to control whether to use the gradient implementation.
+
+Using these changes to torchcrepe, they are implemented into the callback loop for stable audio open small. Using this implementation, the latents that are given at each epoch are decoded, classified by torchcrepe, and compared to the target pitch with MSE loss, using gradients to carry changes into the original flow model.
+
+### Discrete Pitch
+
+The discrete pitch guidance approach focused on steering generation toward specific musical notes rather than continuous frequency values. Unlike continuous pitch estimation, discrete pitch classification maps audio to one of twelve semitone classes within an octave, providing a more musically meaningful representation for harmonic content.
+
+For this implementation, we utilized a pretrained chord recognition model that outputs probability distributions over pitch classes. The model processes mel-spectrogram representations of the decoded audio at each generation step. To enable gradient flow, we replaced argmax operations with softmax temperature scaling, allowing the classification outputs to remain differentiable while still approximating discrete note selection.
+
+The guidance signal is computed by comparing the predicted pitch class distribution against a target distribution representing the desired note or chord. Cross-entropy loss between these distributions provides the gradient signal that adjusts the latent velocity field. This approach aligns with recent work on posterior sampling in flow models, where likelihood gradients guide generation toward target conditions.
+
+### Beat
+
+To guide the model toward a specific beat pattern, we incorporated volume loss into the sampling loop. At each diffusion step, we first decode the latent representation into audio. We then extract an onset-strength envelope, which measures changes in energy associated with note attacks and rhythmic transients. This creates a differentiable representation of the audio's beat structure.
+
+Before generation begins, we compute the onset envelope for the target reference audio using the same process. During sampling, we calculate the mean squared error between the generated and target onset envelopes, and backpropagate this loss into the latent representation. This encourages the model to shift its timing toward the target rhythm. 
+
+## Limitations
+
+### General Limitations
+
+Colab limitations: We mainly operated in Google Colab which restricted the memory and processor access, reducing ability to quickly iterate and refine outcomes. GPU session timeouts and RAM constraints limited batch sizes and the number of generation steps we could feasibly evaluate.
+
+For Mac users, a MPS limitation occurs with audio generation. Due to this error, Mac users will find their audio to be incorrectly generated.
+
+1. The flow model's impact on latents is overwhelmingly strong compared to the guidance we implement. Despite making several attempts to make guidance stronger, the model would reset many relevant changes towards trajectory.
+2. Text conditioning needed to align with the guidance being implemented. For example, if we were attempting to guide a scale with the ChromaSpectrogram, while the prompt was asking for a drumset effect, guidance would fail.
+3. Limited computational resources restricted our ability to train higher-capacity models or run long multi-epoch experiments. As a result, most guidance evaluations were performed on shortened training cycles, which may underrepresent the full potential of each method.
+4. The small parameter count of Stable Audio Open Small limited the effectiveness of guidance. With fewer layers and reduced representational capacity, the model often prioritized maintaining its learned trajectory rather than adapting to external conditioning signals.
+
+### Continuous Pitch Limitations
+
+The continuous pitch section of this project faced many present challenges pertaining to effective generation of audio. While torchcrepe was effective in the implementation of a callback loop with stable audio open small, issues were present which are listed below.
+
+1. Condensing ranges for the target pitch and the model pitch at each step, comparing them on a continuous scale lead to high loss. This high loss would have a difference that is too large for the model to handle.
+2. Rewriting torchcrepe in a hasty fashion and switching out Viterbi for Softmax resulted in less accurate pitch classification.
+
+### Discrete Pitch Limitations
+
+1. The discretization of pitch space loses fine-grained intonation information, making the guidance less effective for microtonal or pitch-bent content.
+
+### Beat Limitations
+
+1. The system's performance demonstrated limited rhythmic generalization because it fails to reliably generate outputs for rhythms outside the training data distribution, struggling with unusually slow or fast tempo and atypical temporal structures like silence at the start of the clip.
+
+2. Usage of high strength volume guidance typically resulted in output audio with a different tempo than the target audio. Low guidance loss in the output audio was instead reached by an arrhythmic volume envelope.
+
+3. A hierarchical conflict was observed where global tempo conditioning through text consistently supersedes the fine-grained rhythmic guidance, resulting in a loss of granular control when multiple conditional inputs are active.
+
+## An Educational Approach to Generative Audio
+
+Littered throughout this post are references to the slightly fragmented and disjointed approach taken by fifteen students and an instructor with different educational backgrounds, existing knowledge, computational resources, and working environments. Although many might see this as a significant obstacle to teaching an undergraduate-level class, especially in a field that requires a hands-on approach to learning, these differences enriched the learning experience of each student by offering a concise foundation to Deep Learning, creating healthy competition between students, and providing a series of Jupyter notebooks which led students from basic MNIST classification to audio guidance. While the final goal of writing and submitting a paper proved to be a goal out of the reach of fifteen undergraduates (and one grad student), there were significant educational outcomes. Turning students from Deep Learning beginners and novices into intermediates in one semester is no simple feat, and the structure of this class – from its helpful learning resources to its exciting competitions – could serve as a framework for future classes.
+
+### Deep Learning Briefer
+
+### Getting Up to Speed
+For students with different levels of experience in python and those coming from other languages, the beginning notebooks were all about getting an understanding of machine learning concepts while building the Python skills necessary. We started with covering the difference between ML and Deep Learning, moving from a conceptual understanding to implementation. The course follows a changing set of libraries, beginning with FastAi to reduce complexity, and maturing towards PyTorch, with sparse implementations of Lightning to introduce new sections. Moving from classic Machine Learning technieuqes to 
+
+
+## Conclusion and Discussion
+
+Can implementing guidance in flow models meaningfully affect musical attributes? Our experiments showed that guidance signals—those derived from ChromaSpectrogram and CREPE-based pitch classification—can interact with the flow model in measurable ways. By analyzing how these signals push against the model's inherent trajectory, we were able to observe the limits of rigidity in Stable Audio Open Small. We found partial success when using chroma-based discrete pitch guidance, with clear influence on harmonic structure, while continuous pitch guidance produced minimal effects due to higher loss and weaker gradient influence. Overall, guidance can shape musical attributes, but its impact is strongly constrained by model size and the strength of its underlying velocity field.
+
+Beyond technical outcomes, our project highlighted the value of teaching guidance for educational impact. Implementing custom code into existing model architectures gave students a deeper understanding of how flow models are built and how they behave under external conditioning. Working with guidance directly helped develop an intuition for how latent gradient impacts interact with the model's learned trajectory. Additionally, exploring different forms of fine-tuning and time scheduling showed how these choices can directly influence guidance effectiveness. Together, these experiences suggest that project-based learning is a uniquely effective tactic for understanding machine learning ideas, especially within flow-based systems.
+
+Looking forward, there is room for growth. Implementing guidance on larger audio generative models would allow for a stronger influence on musical attributes and help overcome the rigidity we observed in smaller architectures. Future work can further explore ways to address the limitations of CREPE-based pitch classification, specifically the challenges of calculating loss within continuous systems. Developing methods that create greater impact between the guidance steps and experimenting with alternate guidance schedules may also shape outcomes more effectively. Working to map the latent space of models like Stable Audio Open Small teaches valuable skills in optimization and understanding architectural limitations, laying the foundation for growth in both students and future guidance techniques.
+
+## Poster Presented at Belmont University's SURS 2025
+![Screenshot 2025-12-11 at 11.53.34 AM](https://hackmd.io/_uploads/B1QNBt_GZe.png)
+
+
+## Acknowledgment
+
+This work has been funded in part by the Academy of Finland (project no. 654321). This template version was edited by Kurt James Werner and Vesa Välimäki.
+academy of finland? didnt know they had those

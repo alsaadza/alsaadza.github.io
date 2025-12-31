@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Audio Showcase</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+margin: 0;
+background: #f7f7f7;
+color: #333;
+}
+header {
+background: #222;
+color: white;
+padding: 1.5rem;
+text-align: center;
+}
+main {
+max-width: 800px;
+margin: 2rem auto;
+padding: 1rem;
+}
+.audio-card {
+background: white;
+padding: 1rem;
+border-radius: 12px;
+margin-bottom: 1.5rem;
+box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.audio-card h2 {
+margin-top: 0;
+}
+footer {
+text-align: center;
+padding: 2rem;
+font-size: 0.9rem;
+color: #555;
+}
+.audio-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;        /* space between image and audio */
+  margin-bottom: 1rem;
+}
+
+.audio-row img {
+  width: 50px;     /* adjust size as needed */
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.thumbnail {
+    width: 50px;   /* adjust size here */
+    border-radius: 8px;
+    margin-top: 0.5rem;
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Adding Guidance-Based Stylistic Controls to Flow Models for Coherent Audio Generation</h1>
+<p>Browse the audio clips at your own pace.</p>
+</header>
+
+<main>
+<h2>Chords</h2>
+<div class="audio-card">
+<h3>Generated Sample 1 (without Guidance):</h3>
+<p>Prompt: Beginner Saxophone Practice Slow Ascending Chromatic Scale</p>
+<img src="images/chord_no_guidance.png" alt="Spectrogram for ChordsEx1">
+<audio controls>
+<source src="audio/ChordsEx1.wav" type="audio/wav" />
+</audio>
+<h3>Generated Sample 2 (with Guidance):</h3>
+<p>Panflute Chromatic Scale</p>
+<img src="images/chord_guidance.png" alt="Spectrogram for ChordsEx2">
+<audio controls>
+<source src="audio/ChordsEx2.wav" type="audio/wav" />
+</audio>
+</div>
+
+
+<h2>Melody</h2>
+<div class="audio-card">
+<h3>Target Audio: Nylon Guitar</h3>
+<audio controls>
+<source src="audio/Nylon_Target.wav" type="audio/wav" />
+</audio>
+<h3>Nylon Guitar, Pitch Guidance</h3>
+<p>Prompt: nylon guitar country twang light</p>
+<img src="images/melody_guidance.png" alt="Spectrogram for Nylon_Guitar">
+<audio controls>
+<source src="audio/Nylon_Guitar.wav" type="audio/wav" />
+</audio>
+</div>
+
+
+<h2>Random Stuff</h2>
+<div class="audio-card">
+<h3>Guidance Fail (Whale in Pain)</h3>
+<p>Prompt: Nylon Guitar Country Sound</p>
+<p>(At least we got the guidance to do something)</p>
+<audio controls>
+<source src="audio/Squealing_Wail.wav" type="audio/wav" />
+</audio>
+</div>
+
+</main>
+</html>
